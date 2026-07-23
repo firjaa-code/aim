@@ -1,7 +1,7 @@
 --[[
-    AIM LOCK KE NPC — LocalScript (Roblox)
+    AIM LOCK KE PLAYER LAIN — LocalScript (Roblox)
     Fitur:
-    - Tracking langsung (no delay) ke NPC terdekat, 360 derajat
+    - Tracking langsung (no delay) ke Player terdekat, 360 derajat
     - Otomatis ganti target kalau target sekarang mati / kabur / ketutup wall / kejauhan
     - Wall check pakai Raycast
     - Jarak deteksi bisa diatur lewat TextBox
@@ -277,32 +277,34 @@ local function hasClearLineOfSight(fromPos, toPos, ignoreList)
 end
 
 --// ============================================================
---// Cari NPC terdekat yang valid (bukan player, dalam jarak, tidak ketutup wall)
+--// Cari PLAYER LAIN terdekat yang valid (dalam jarak, tidak ketutup wall)
 --// ============================================================
-local function findNearestValidNPC()
+local function findNearestValidPlayer()
     local nearest = nil
     local nearestHumanoid = nil
     local shortestDistance = maxDistance
 
-    for _, model in pairs(Workspace:GetDescendants()) do
-        if model:IsA("Model") and model ~= character then
-            local humanoid = model:FindFirstChildOfClass("Humanoid")
-            local root = model:FindFirstChild("HumanoidRootPart")
+    for _, otherPlayer in pairs(Players:GetPlayers()) do
+        -- Lewati diri sendiri
+        if otherPlayer ~= player then
+            local otherCharacter = otherPlayer.Character
+            if otherCharacter then
+                local humanoid = otherCharacter:FindFirstChildOfClass("Humanoid")
+                local root = otherCharacter:FindFirstChild("HumanoidRootPart")
 
-            if humanoid and root and humanoid.Health > 0 then
-                if not Players:GetPlayerFromCharacter(model) then
+                if humanoid and root and humanoid.Health > 0 then
                     local distance = (root.Position - humanoidRootPart.Position).Magnitude
 
                     if distance <= shortestDistance then
                         local clear = hasClearLineOfSight(
                             camera.CFrame.Position,
                             root.Position,
-                            {character, camera}
+                            {character, otherCharacter, camera}
                         )
 
                         if clear then
                             shortestDistance = distance
-                            nearest = model
+                            nearest = otherCharacter
                             nearestHumanoid = humanoid
                         end
                     end
@@ -327,14 +329,14 @@ RunService.RenderStepped:Connect(function()
         if root and lockedHumanoid.Health > 0 then
             local distance = (root.Position - humanoidRootPart.Position).Magnitude
             if distance <= maxDistance then
-                targetStillValid = hasClearLineOfSight(camera.CFrame.Position, root.Position, {character, camera})
+                targetStillValid = hasClearLineOfSight(camera.CFrame.Position, root.Position, {character, lockedTarget, camera})
             end
         end
     end
 
     -- Kalau target lama sudah mati / kabur / ketutup wall / kejauhan -> ganti target
     if not targetStillValid then
-        lockedTarget, lockedHumanoid = findNearestValidNPC()
+        lockedTarget, lockedHumanoid = findNearestValidPlayer()
     end
 
     -- Kunci kamera ke target (instan, tanpa lerp, bisa 360 derajat termasuk ke belakang)
@@ -343,7 +345,14 @@ RunService.RenderStepped:Connect(function()
         if root then
             local camPos = camera.CFrame.Position
             camera.CFrame = CFrame.new(camPos, root.Position)
-            statusLabel.Text = "Target: " .. lockedTarget.Name
+
+            -- Tampilkan nama player (DisplayName) di status
+            local targetPlayer = Players:GetPlayerFromCharacter(lockedTarget)
+            if targetPlayer then
+                statusLabel.Text = "Target: " .. targetPlayer.DisplayName .. " (@" .. targetPlayer.Name .. ")"
+            else
+                statusLabel.Text = "Target: " .. lockedTarget.Name
+            end
         end
     else
         statusLabel.Text = "Target: Tidak ada"
